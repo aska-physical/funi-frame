@@ -2,6 +2,21 @@
 
 All notable machine-verified engineering milestones for `aska-physical/funi-frame`.
 
+## [0.1.1] — 2026-11-17
+
+Corrections from the cross-repository review in [`aska-physical/optifab`](/aska-physical/optifab) (`HANDOFF.md` §3). Prepared by an AI agent; awaiting human sign-off.
+
+### Changed
+- **Unlocked compute is reported in IT power, not utility power.** The `3.06 MW` of freed substation power carries **`2.85–2.96 MW`** of new IT load (`P_freed / PUE` if every overhead scales with load; `P_freed / (1 + 1/COP_loop)` if only the `ATES` loop does). `unlocked_annual_revenue_low_M_usd` falls from `76.62` to **`71.35`**, and `unlocked_annual_revenue_high_M_usd` (**`147.95`**) is now in the certificate. `README.md` §6 retitled from "Freed Compute Power" to "Freed Utility Power". This assumes the `$25–$50M/MW-yr` value is per MW of IT load.
+
+### Added
+- **Re-cooling temperature and its second-law limit (`Theorem 5`, `Must-fail #13`).** The certificate now carries `T_drive_supply_C = 58`, `T_chilled_water_C = 18`, `T_recooling_design_C = 30`, the reversible COP limit at design re-cooling (`2.051`) and at `45 °C` dry re-cooling (`0.423`), and `T_recooling_max_for_design_cop_C = 41.46`. The `30 °C` design value is a choice made in this version and needs the owner's confirmation.
+- **`Must-fail #14`:** freed utility power may not be counted as IT power.
+- **`declared_inputs` and `controls_on_declared_inputs_only`** in the certificate: every value that is stated from the literature or the design brief rather than computed, and the one control (`#10`) that compares only such values.
+
+### Not changed
+- No structural, acoustic, vibration, seismic or storage result. `PUE`, `WUE` and all `12` original controls are as in `v0.1.0`.
+
 ## [0.1.0] — 2026-11-16
 
 ### Added

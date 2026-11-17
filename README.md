@@ -1,6 +1,6 @@
 # funi-frame
 
-**Monolithic Vibro-Thermal Funicular Data-Center Shell, Three-Tier Waste-Heat TES & Zero-Water Sorption Cooling (`v0.1.0`).**
+**Monolithic Vibro-Thermal Funicular Data-Center Shell, Three-Tier Waste-Heat TES & Zero-Water Sorption Cooling (`v0.1.1`).**
 
 `funi-frame` unifies the [`aska-physical`](/aska-physical) hardware stack—[`funi-floors`](/aska-physical/funi-floors), [`cfrp-truss`](/aska-physical/cfrp-truss), [`fibral-rigidity`](/aska-physical/fibral-rigidity), [`venturi-collars`](/aska-physical/venturi-collars), and [`impedence-analyzers`](/aska-physical/impedence-analyzers)—into a **complete, machine-verified AI data-center building exoskeleton and closed-loop thermal plant** engineered for `80–250 kW/rack` GPU halls that generate high-grade liquid heat (`50–60 °C`) under strict optical/switch vibration limits (`<= 0.0005 g_rms`).
 
@@ -21,8 +21,9 @@
    - Cuts whole-shell structural dead mass by **`64.83%`** (`1,431.4` vs. `4,069.8 tonnes`), saves **`2.02 m` of building height**, reduces seismic base shear by **`44.23%`**, holds top-down loaded story drift to **`0.563% <= 1.00%`** Immediate Occupancy limit (unbraced heavy frames hit `4.359%`), and seals overhead concrete inside stay-in-place composite pans (`0` spalling dust).
 5. **Three-Tier Waste-Heat Thermal Energy Storage (`PCM` + Crushed Basalt + `ATES`/`RTES` + Energy Piles):**
    - Pairs **`83.33 m³` salt-hydrate `HS24` `PCM` skids** (`30.0` vs. `11.5 kWh_th/m³` water = `-61.67%` tank volume for `15-min` `2.5 MWh_th` ride-through), **`88.68 m³` (`20 MWh_th`) `500 K` crushed-basalt packed beds** (`225.5 kWh_th/m³`, `$14,046` mineral cost at **`$0.014/kWh_th`** annualized capex—`4.86x` lower than Li-ion), **`200` thermo-active foundation piles (`250 kW_th`)**, and **coastal `ATES` / deep brackish `RTES` wellfields (`COP 10–54`)**.
-6. **Closed-Loop Sorption Cooling (`PUE = 1.074`, `WUE = 0.000 L/kWh`, `+3.06 MW` Freed Compute Power):**
-   - SymPy proves self-cooling above $\alpha_{\text{liq}}^* = 1/(1 + \text{COP}_{\text{ads}}) = 61.73\%$: `85%` `ASHRAE W45` (`58 °C`) cold-plate return directly regenerates **solid-sorbent silica-gel adsorption chillers (`2.419 MW_th` drive -> `1.50 MW_th` RDHx cooling, zero heat pump)**, cutting annual cooling electricity by **`85.05%`**, saving **`157.68 million L/yr` of potable water**, and freeing **`3.06 MW` of utility power (`$76.62M–$153.2M/yr` unlocked AI compute revenue)**.
+6. **Closed-Loop Sorption Cooling (`PUE = 1.074`, `WUE = 0.000 L/kWh`, `+3.06 MW` Freed Utility Power = `+2.85–2.96 MW` IT):**
+   - SymPy proves self-cooling above $\alpha_{\text{liq}}^* = 1/(1 + \text{COP}_{\text{ads}}) = 61.73\%$: `85%` `ASHRAE W45` (`58 °C`) cold-plate return directly regenerates **solid-sorbent silica-gel adsorption chillers (`2.419 MW_th` drive -> `1.50 MW_th` RDHx cooling, zero heat pump)**, cutting annual cooling electricity by **`85.05%`**, saving **`157.68 million L/yr` of potable water**, and freeing **`3.06 MW` of utility power, which carries `2.85–2.96 MW` of new IT load on the same substation (`$71.35M–$147.95M/yr` unlocked AI compute revenue at `$25–$50M` per MW-yr of IT load)**. New racks need their own cooling and overhead, so freed utility power is not all IT power (`Must-fail #14`).
+   - **Re-cooling limit (`Must-fail #13`):** the `0.62` adsorption COP at a `58 °C` drive and `18 °C` chilled water is thermodynamically possible only below **`41.46 °C`** re-cooling. The design re-cools at `30 °C` into the `ATES` / energy-pile / sky sinks (reversible limit `2.051`); `45 °C` dry re-cooling cannot reach it (reversible limit `0.423`). The zero-water claim and the COP claim both depend on those sinks.
 
 ## Reproduce & Verify
 
@@ -30,7 +31,7 @@
 python3 verify.py
 ```
 
-Verifies four SymPy symbolic theorems and **12/12 must-fail controls** against [`results/certificate.json`](results/certificate.json). Full engineering monographs, inter-agent handoff, negative findings, and roadmap live in [`docs/ENGINEERING_STUDIES.md`](docs/ENGINEERING_STUDIES.md), [`HANDOFF.md`](HANDOFF.md), and [`CHANGELOG.md`](CHANGELOG.md).
+Verifies six SymPy symbolic identities and **14/14 must-fail controls** against [`results/certificate.json`](results/certificate.json). The certificate names the inputs that are declared from the literature or the design brief rather than computed (`declared_inputs`), and the one control that rests on declared inputs only (`controls_on_declared_inputs_only`). Full engineering monographs, inter-agent handoff, negative findings, and roadmap live in [`docs/ENGINEERING_STUDIES.md`](docs/ENGINEERING_STUDIES.md), [`HANDOFF.md`](HANDOFF.md), and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Attribution & Ethos
 
