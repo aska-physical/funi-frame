@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic six-domain verifier for aska-physical/funi-frame (v0.1.0):
+"""Deterministic six-domain verifier for aska-physical/funi-frame (v0.1.1):
 Monolithic Vibro-Thermal Funicular Data-Center Shell, 3-Tier Waste-Heat TES & Zero-Water Sorption Cooling.
 """
 from __future__ import annotations
@@ -29,11 +29,23 @@ def verify_symbolic_theorems() -> dict[str, str]:
 
     a_liq, cop = sp.symbols("alpha_liq cop_ads", positive=True)
     assert sp.simplify(sp.solve(sp.Eq(a_liq * cop, 1 - a_liq), a_liq)[0] - 1 / (1 + cop)) == 0
+
+    Th, Ta, Tc = sp.symbols("T_h T_a T_c", positive=True)
+    cop_rev = (Tc / (Ta - Tc)) * ((Th - Ta) / Th)
+    assert sp.simplify(cop_rev.subs(Ta, Tc * Th * (1 + cop) / (cop * Th + Tc)) - cop) == 0
+
+    P, pue_c, pue_f, c_loop, q0, a0, P2 = sp.symbols("P PUE_c PUE_f c_loop q0 a0 P2", positive=True)
+    assert sp.simplify(((P * pue_c) / pue_f - P) - P * (pue_c - pue_f) / pue_f) == 0
+    used = lambda load: load + (load - q0) / c_loop + a0
+    grown = sp.solve(sp.Eq(used(P2), P * pue_c), P2)
+    assert len(grown) == 1 and sp.simplify((grown[0] - P) - (P * pue_c - used(P)) / (1 + 1 / c_loop)) == 0
     return {
         "hysteretic_vs_viscous_rolloff": "lim_{r->oo} r*T_hyst = 0 (O(r^-2)) vs. lim_{r->oo} r*T_visc = 2*zeta (O(r^-1))",
         "thermal_bridge_amplification": "U_eff / U_core = 1 + rho_pin * (k_pin / k_ins - 1)",
         "pcm_volumetric_gain_identity": "E_tank / E_water = (1 - phi) + phi * rho_p * (cp_p*dT + L_f) / (rho_w*cp_w*dT)",
         "self_cooling_liquid_capture_threshold": "alpha_liq* = 1 / (1 + COP_ads)",
+        "sorption_recooling_limit": "COP_ads <= (T_c/(T_a - T_c))*((T_h - T_a)/T_h)  <=>  T_a <= T_c*T_h*(1 + COP_ads)/(COP_ads*T_h + T_c)",
+        "it_power_from_freed_utility_power": "dP_IT = P_freed/PUE if all overhead scales with load; P_freed/(1 + 1/COP_loop) if only the cooling loop does",
     }
 
 
@@ -138,16 +150,36 @@ def solve_whole_frame_seismic(roof_m: float, wall_m: float) -> dict:
   }
 
 
+def _cop_rev(t_drive_c: float, t_recool_c: float, t_chilled_c: float) -> float:
+  th, ta, tc = t_drive_c + 273.15, t_recool_c + 273.15, t_chilled_c + 273.15
+  return (tc / (ta - tc)) * ((th - ta) / th)
+
+
 def solve_three_tier_tes_and_cooling() -> dict:
   P_it, Q_liq, Q_air = 10.0, 8.5, 1.5
+  cop_ads, cop_loop = 0.62, 28.0
+  # T_rec is a proposed design value, new in v0.1.1. No source is cited for it and the owner has not confirmed it.
+  # Control 13 holds for any value below T_rec_max.
+  T_drv, T_chw, T_rec = 58.0, 18.0, 30.0  # drive supply, warmest chilled water, proposed design recooling (deg C)
   v_pcm, v_wat = 2500.0 / 30.0, 2500.0 / 11.5
-  Q_drv = Q_air / 0.62
+  Q_drv = Q_air / cop_ads
   Q_pil, Q_sky = 200 * 25.0 * 50.0 * 1e-6, 2500.0 * 93.0 * 1e-6
   Q_ates = (Q_liq - Q_drv) + (Q_air + Q_drv) - (Q_pil + 0.55 * Q_sky)
-  P_c_conv, P_c_funi = P_it / 3.0 + 0.27, Q_ates / 28.0 + 0.195
+  P_c_conv, P_c_funi = P_it / 3.0 + 0.27, Q_ates / cop_loop + 0.195
+  P_freed = P_c_conv - P_c_funi
+  pue_funi = (P_it + P_c_funi + 0.2) / P_it
+  # Freed utility power is not IT power: new racks need their own cooling and overhead.
+  P_it_low, P_it_high = P_freed / pue_funi, P_freed / (1.0 + 1.0 / cop_loop)
+  T_rec_max = (T_chw + 273.15) * (T_drv + 273.15) * (1.0 + cop_ads) / (cop_ads * (T_drv + 273.15) + T_chw + 273.15) - 273.15
   return {
       "P_it_MW": P_it, "Q_liquid_w45_MW": Q_liq, "Q_air_rdhx_MW": Q_air,
-      "alpha_liq_critical_for_self_cooling": round(1.0 / 1.62, 4),
+      "alpha_liq_critical_for_self_cooling": round(1.0 / (1.0 + cop_ads), 4),
+      "cop_ads_design": cop_ads, "T_drive_supply_C": T_drv, "T_chilled_water_C": T_chw, "T_recooling_design_C": T_rec,
+      "T_recooling_design_basis": "proposed in v0.1.1; no source cited; awaiting the owner's confirmation",
+      "cop_loop_design": cop_loop,
+      "cop_ads_reversible_limit_at_design_recooling": round(_cop_rev(T_drv, T_rec, T_chw), 3),
+      "cop_ads_reversible_limit_at_45C_dry_recooling": round(_cop_rev(T_drv, 45.0, T_chw), 3),
+      "T_recooling_max_for_design_cop_C": round(T_rec_max, 2),
       "Q_drive_for_adsorption_MW": round(Q_drv, 3), "adsorption_self_cools_air_load": Q_drv <= Q_liq,
       "cop_ads_at_32C_air_exhaust": 0.0, "pcm_ride_through_volume_m3": round(v_pcm, 2),
       "water_equivalent_volume_m3": round(v_wat, 2),
@@ -159,8 +191,15 @@ def solve_three_tier_tes_and_cooling() -> dict:
       "PUE_funi_frame": round((P_it + P_c_funi + 0.2) / P_it, 3),
       "cooling_electricity_reduction_pct": round((1.0 - P_c_funi / P_c_conv) * 100.0, 2),
       "WUE_funi_frame_L_per_kWh": 0.0, "potable_water_saved_million_L_yr": round(P_it * 8.760 * 1.80, 2),
-      "freed_substation_power_MW": round(P_c_conv - P_c_funi, 2),
-      "unlocked_annual_revenue_low_M_usd": round((P_c_conv - P_c_funi) * 25.0, 2),
+      "freed_substation_power_MW": round(P_freed, 2),
+      "extra_it_power_at_fixed_supply_low_MW": round(P_it_low, 2),
+      "extra_it_power_at_fixed_supply_high_MW": round(P_it_high, 2),
+      # Low and high each vary two things: low is the low IT load at the low rate, high is the high IT load at the high rate.
+      "unlocked_annual_revenue_low_M_usd": round(P_it_low * 25.0, 2),
+      "unlocked_annual_revenue_high_M_usd": round(P_it_high * 50.0, 2),
+      "unlocked_annual_revenue_pairing": "low = low IT load at 25 M usd per MW-yr; high = high IT load at 50 M usd per MW-yr",
+      "unlocked_annual_revenue_at_25M_usd_per_MW_yr_M_usd": [round(P_it_low * 25.0, 2), round(P_it_high * 25.0, 2)],
+      "unlocked_annual_revenue_at_50M_usd_per_MW_yr_M_usd": [round(P_it_low * 50.0, 2), round(P_it_high * 50.0, 2)],
   }
 
 
@@ -182,13 +221,52 @@ def build_certificate() -> dict:
       "must_fail_11_low_grade_air_exhaust_cannot_drive_adsorption": ts["cop_ads_at_32C_air_exhaust"] == 0.0 and ts["adsorption_self_cools_air_load"] is True,
       "must_fail_12_evaporative_plant_fails_zero_water_and_pue_gate": ts["PUE_conventional"] > 1.35 and ts["PUE_funi_frame"] <= 1.08 and ts["WUE_funi_frame_L_per_kWh"] == 0.0,
   }
+  ct["must_fail_13_dry_recooling_at_45C_cannot_reach_design_adsorption_cop"] = (
+      ts["cop_ads_reversible_limit_at_45C_dry_recooling"] < ts["cop_ads_design"] <= ts["cop_ads_reversible_limit_at_design_recooling"]
+      and ts["T_recooling_design_C"] < ts["T_recooling_max_for_design_cop_C"])
+  # Control 14 does not trust the two formulas in the solver. It checks them by a power balance: the new IT load
+  # plus the overhead it brings must use up the freed utility power. Counting the freed power itself as IT load
+  # must leave that balance open. Tolerances follow from the certificate's rounding (0.01 MW, 0.01 M usd).
+  freed, it_lo, it_hi = (ts["freed_substation_power_MW"], ts["extra_it_power_at_fixed_supply_low_MW"],
+                         ts["extra_it_power_at_fixed_supply_high_MW"])
+  loop_factor = 1.0 + 1.0 / ts["cop_loop_design"]
+  ct["must_fail_14_freed_utility_power_counted_as_it_power"] = (
+      abs(it_lo * ts["PUE_funi_frame"] - freed) <= 0.02 and abs(it_hi * loop_factor - freed) <= 0.02
+      and freed * loop_factor - freed > 0.02
+      and it_lo <= it_hi < freed
+      and abs(ts["unlocked_annual_revenue_low_M_usd"] - it_lo * 25.0) <= 0.13
+      and abs(ts["unlocked_annual_revenue_high_M_usd"] - it_hi * 50.0) <= 0.26
+      and ts["unlocked_annual_revenue_low_M_usd"] < freed * 25.0 - 0.13)
   assert all(ct.values()), [k for k, v in ct.items() if not v]
+  # Values that no solver computes: they are stated from the cited literature or the design brief.
+  declared = {
+      "domain_1_funicular_radiative_roof": ["tornado_tiedown_capacity_kN", "noon_radiative_sky_cooling_W_m2"],
+      "domain_2_vibro_thermal_sandwich_wall": ["nrc_poraver_helmholtz"],
+      "domain_3_broadband_vibration_cascade": ["oem_switch_limit_g_rms"],
+      "domain_4_top_down_seismic_cellular_frame": ["risk_cat_iv_drift_limit_pct"],
+      "domain_5_6_three_tier_tes_and_closed_loop_cooling": [
+          "P_it_MW", "Q_liquid_w45_MW", "Q_air_rdhx_MW", "cop_ads_design", "cop_ads_at_32C_air_exhaust",
+          "T_drive_supply_C", "T_chilled_water_C", "T_recooling_design_C", "cop_loop_design", "basalt_battery_volume_m3",
+          "basalt_media_mass_tonnes", "basalt_media_cost_usd", "annualized_capex_basalt_usd_kWh",
+          "annualized_capex_liion_usd_kWh", "WUE_funi_frame_L_per_kWh"],
+  }
+  # Naming these does not repair them. Control 10 compares two stated constants and still cannot fail.
+  declared_only = ["must_fail_10_liion_exceeds_thermal_arbitrage_capex_ceiling"]
+  declared_partly = {
+      "must_fail_05_bare_concrete_fails_hall_acoustic_absorption":
+          "nrc_poraver_helmholtz is declared as 0.72, and 0.72 is written again as a literal in the reverberation calculation",
+      "must_fail_11_low_grade_air_exhaust_cannot_drive_adsorption": "cop_ads_at_32C_air_exhaust is declared as 0.0",
+      "must_fail_12_evaporative_plant_fails_zero_water_and_pue_gate": "WUE_funi_frame_L_per_kWh is declared as 0.0",
+  }
   return {
-      "repository": "aska-physical/funi-frame", "version": "0.1.0", "symbolic_theorems": th,
+      "repository": "aska-physical/funi-frame", "version": "0.1.1", "symbolic_theorems": th,
       "domain_1_funicular_radiative_roof": rf, "domain_2_vibro_thermal_sandwich_wall": wl,
       "domain_3_broadband_vibration_cascade": vb, "domain_4_top_down_seismic_cellular_frame": se,
       "domain_5_6_three_tier_tes_and_closed_loop_cooling": ts, "must_fail_controls": ct,
       "controls_passed": f"{sum(ct.values())}/{len(ct)}",
+      "declared_inputs": declared,
+      "controls_on_declared_inputs_only": declared_only,
+      "controls_resting_partly_on_declared_inputs": declared_partly,
   }
 
 
@@ -204,7 +282,7 @@ def main() -> int:
   if saved != cert:
       print("ERROR: certificate drift detected against verify.py!", file=sys.stderr)
       return 1
-  print(f"[PASS] funi-frame v0.1.0 ({cert['controls_passed']} controls, PUE={cert['domain_5_6_three_tier_tes_and_closed_loop_cooling']['PUE_funi_frame']}, WUE=0.0 L/kWh, Rack={cert['domain_3_broadband_vibration_cascade']['rack_g_rms_funi_frame']} g_rms): OK")
+  print(f"[PASS] funi-frame v0.1.1 ({cert['controls_passed']} controls, PUE={cert['domain_5_6_three_tier_tes_and_closed_loop_cooling']['PUE_funi_frame']}, WUE=0.0 L/kWh, Rack={cert['domain_3_broadband_vibration_cascade']['rack_g_rms_funi_frame']} g_rms): OK")
   return 0
 
 
