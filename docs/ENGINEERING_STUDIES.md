@@ -1,6 +1,8 @@
 # Engineering Studies Monograph — `aska-physical/funi-frame` (`v0.1.0`)
 
 Complete archival capture of both session engineering studies for [`aska-physical/funi-frame`](/aska-physical/funi-frame), machine-verified by [`verify.py`](../verify.py) against [`results/certificate.json`](../results/certificate.json) (`12/12` must-fail controls):
+
+> **Correction note, `v0.1.1` (2026-11-17).** This monograph is the archive of `v0.1.0` and its text is unchanged. Two things in it were corrected later. The unlocked-compute figure in II.3 (`$76.62M–$153.24M/yr`) counted `3.06 MW` of freed utility power as IT power; the corrected figure is `2.85–2.96 MW` of new IT load. And the `0.62` adsorption COP has a re-cooling limit of `41.46 °C` that this text does not state. See [`CHANGELOG.md`](../CHANGELOG.md) and [`HANDOFF.md`](../HANDOFF.md) for `v0.1.1`.
 1. **Study I:** *Whole-Building Monolithic Vibro-Thermal Data-Center Exoskeleton (Funicular Radiative Roof, Zero-Bridge Poraver-mPCM Sandwich Shear Walls, Three-Stage Hysteretic Vibration Cascade & Top-Down Seismic Cellular Box)*
 2. **Study II:** *Capturing AI Data-Center Waste Heat, Three-Tier High-Density Thermal Energy Storage (PCM, Mineral Packed Beds & Subsurface ATES/RTES/Energy Piles), and Closed-Loop Sorption Cooling*
 
@@ -50,7 +52,7 @@ Modern `80–250 kW/rack` AI halls (`12–15+ kN/m²` live loads, `$200,000+` pe
         ### II.3 Closed-Loop Sorption Cooling, Structural Conduit Coupling & `10 MW` Campus Balance
         - **SymPy Theorem 4 (`Must-fail #11`):** Self-cooling liquid-capture threshold $\alpha_{\text{liq}}^* = 1/(1 + \text{COP}_{\text{ads}}) = 61.73\%$ at silica-gel `COP_ads = 0.62` (`55–100 °C` drive). Capturing `85%` (`8.50 MW_th`) at `58 °C` (`W45`) feeds **`2.419 MW_th`** directly into silica-gel adsorption chillers to produce `1.50 MW_th` of `15–18 °C` `RDHx` chilled water with **zero compressors and zero heat-pump lift** (optional `R744/R717` `HTHP` at `COP 3.5–6.0` lifts `58 °C` -> `75–95 °C` for `20.5 MW` `LiBr-H2O` chillers or `5–8 MW_th` `4GDH` district export).
         - **Structural Manifold & `50 kHz` EIS Leak Twin:** Insulated `TCS/FWS` headers route inside `200 mm` `45°` Torayca T1100G rib apertures of [`funi-floors`](/aska-physical/funi-floors) with [`impedence-analyzers`](/aska-physical/impedence-analyzers) `50 kHz` Cole-Cole moisture sensing (`+46.16%` reactance shift, `0.0000%` load crosstalk).
-        - **Verified `10 MW` Campus Result (`Must-fail #12`):** Cuts `PUE` from `1.380` to **`1.074`** (**`-85.05%` cooling electricity**), achieves **`WUE = 0.000 L/kWh`** (**`157.68M L/yr` potable water saved**), and frees **`3.06 MW` of substation power, which carries `2.85–2.96 MW` of new IT load (`$71.35M–$147.95M/yr` unlocked AI compute revenue; corrected in `v0.1.1`, see [`CHANGELOG.md`](../CHANGELOG.md))**.
+        - **Verified `10 MW` Campus Result (`Must-fail #12`):** Cuts `PUE` from `1.380` to **`1.074`** (**`-85.05%` cooling electricity**), achieves **`WUE = 0.000 L/kWh`** (**`157.68M L/yr` potable water saved**), and frees **`3.06 MW` of substation power (`$76.62M–$153.24M/yr` unlocked AI compute revenue)**.
 
         ## Primary Engineering References
         1. **Linwood, E.** (2023), *STRUCTURE Magazine* (*Design Parameters for Data Center Facilities*); **CalcSteel** (2026) (*Steel for AI Data Centers*); **S. A. Miro** (2026) & **ISTA Engineers**.
