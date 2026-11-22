@@ -126,6 +126,8 @@
   "controls_passed": "14/14",
   "declared_inputs": {
     "domain_1_funicular_radiative_roof": [
+      "span_m",
+      "vault_depth_mm",
       "tornado_tiedown_capacity_kN",
       "noon_radiative_sky_cooling_W_m2"
     ],
@@ -160,8 +162,13 @@
     "must_fail_10_liion_exceeds_thermal_arbitrage_capex_ceiling"
   ],
   "controls_resting_partly_on_declared_inputs": {
+    "must_fail_03_tornado_uplift_resisted_without_ballast": "the tie-down capacity it compares the computed uplift against, tornado_tiedown_capacity_kN, is a declared design value",
     "must_fail_05_bare_concrete_fails_hall_acoustic_absorption": "nrc_poraver_helmholtz is declared as 0.72, and 0.72 is written again as a literal in the reverberation calculation",
+    "must_fail_07_undamped_steel_exceeds_0p0005g_switch_limit": "the limit it compares against, oem_switch_limit_g_rms, is declared from a manufacturer's figure",
+    "must_fail_08_top_heavy_unbraced_frame_fails_risk_cat_iv_drift": "the limit it compares against, risk_cat_iv_drift_limit_pct, is declared from the code",
     "must_fail_11_low_grade_air_exhaust_cannot_drive_adsorption": "cop_ads_at_32C_air_exhaust is declared as 0.0",
-    "must_fail_12_evaporative_plant_fails_zero_water_and_pue_gate": "WUE_funi_frame_L_per_kWh is declared as 0.0"
+    "must_fail_12_evaporative_plant_fails_zero_water_and_pue_gate": "WUE_funi_frame_L_per_kWh is declared as 0.0",
+    "must_fail_13_dry_recooling_at_45C_cannot_reach_design_adsorption_cop": "cop_ads_design and T_recooling_design_C are declared, and so are the two temperatures the limits are computed from",
+    "must_fail_14_freed_utility_power_counted_as_it_power": "cop_loop_design is declared"
   }
 }

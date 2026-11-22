@@ -3,11 +3,43 @@
 Monolithic Vibro-Thermal Funicular Data-Center Shell, 3-Tier Waste-Heat TES & Zero-Water Sorption Cooling.
 """
 from __future__ import annotations
-import argparse, json, math, sys
+import argparse, ast, json, math, sys
 from pathlib import Path
 import sympy as sp
 
 CERT_PATH = Path(__file__).resolve().parent / "results" / "certificate.json"
+
+
+SOLVER_DOMAIN = {
+    "solve_funicular_roof": "domain_1_funicular_radiative_roof",
+    "solve_vibro_thermal_wall": "domain_2_vibro_thermal_sandwich_wall",
+    "solve_vibration_cascade": "domain_3_broadband_vibration_cascade",
+    "solve_whole_frame_seismic": "domain_4_top_down_seismic_cellular_frame",
+    "solve_three_tier_tes_and_cooling": "domain_5_6_three_tier_tes_and_closed_loop_cooling",
+}
+
+
+def literal_certificate_fields() -> dict[str, list[str]]:
+  """Certificate fields whose value is a number written in this file, or a name bound straight to one.
+  Read from the source, so the list of declared inputs cannot fall behind the solvers."""
+  number = lambda v: isinstance(v, ast.Constant) and isinstance(v.value, (int, float)) and not isinstance(v.value, bool)
+  found = {}
+  for fn in ast.parse(Path(__file__).read_text(encoding="utf-8")).body:
+    if not (isinstance(fn, ast.FunctionDef) and fn.name in SOLVER_DOMAIN):
+      continue
+    bound = set()
+    for st in ast.walk(fn):
+      if isinstance(st, ast.Assign) and len(st.targets) == 1:
+        target, value = st.targets[0], st.value
+        pairs = [(target, value)]
+        if isinstance(target, ast.Tuple) and isinstance(value, ast.Tuple) and len(target.elts) == len(value.elts):
+          pairs = list(zip(target.elts, value.elts))
+        bound |= {t.id for t, v in pairs if isinstance(t, ast.Name) and number(v)}
+    fields = [k.value for r in ast.walk(fn) if isinstance(r, ast.Return) and isinstance(r.value, ast.Dict)
+              for k, v in zip(r.value.keys, r.value.values)
+              if number(v) or (isinstance(v, ast.Name) and v.id in bound)]
+    found[SOLVER_DOMAIN[fn.name]] = sorted(fields)
+  return found
 
 
 def require(condition, message="") -> None:
@@ -242,11 +274,16 @@ def build_certificate() -> dict:
       and it_lo <= it_hi < freed
       and abs(ts["unlocked_annual_revenue_low_M_usd"] - it_lo * 25.0) <= 0.13
       and abs(ts["unlocked_annual_revenue_high_M_usd"] - it_hi * 50.0) <= 0.26
+      and all(abs(value - it * rate) <= rate * 0.005 + 0.006
+              for rate, key in ((25.0, "unlocked_annual_revenue_at_25M_usd_per_MW_yr_M_usd"),
+                                (50.0, "unlocked_annual_revenue_at_50M_usd_per_MW_yr_M_usd"))
+              for value, it in zip(ts[key], (it_lo, it_hi)))
       and ts["unlocked_annual_revenue_low_M_usd"] < freed * 25.0 - 0.13)
   require(all(ct.values()), [k for k, v in ct.items() if not v])
   # Values that no solver computes: they are stated from the cited literature or the design brief.
   declared = {
-      "domain_1_funicular_radiative_roof": ["tornado_tiedown_capacity_kN", "noon_radiative_sky_cooling_W_m2"],
+      "domain_1_funicular_radiative_roof": ["span_m", "vault_depth_mm", "tornado_tiedown_capacity_kN",
+                                            "noon_radiative_sky_cooling_W_m2"],
       "domain_2_vibro_thermal_sandwich_wall": ["nrc_poraver_helmholtz"],
       "domain_3_broadband_vibration_cascade": ["oem_switch_limit_g_rms"],
       "domain_4_top_down_seismic_cellular_frame": ["risk_cat_iv_drift_limit_pct"],
@@ -256,14 +293,29 @@ def build_certificate() -> dict:
           "basalt_media_mass_tonnes", "basalt_media_cost_usd", "annualized_capex_basalt_usd_kWh",
           "annualized_capex_liion_usd_kWh", "WUE_funi_frame_L_per_kWh"],
   }
+  # The list above is checked against the source: every certificate field that is a written number must be on it.
+  literal = literal_certificate_fields()
+  require({k: sorted(v) for k, v in declared.items()} == literal,
+          {k: sorted(set(literal[k]) ^ set(declared.get(k, []))) for k in literal if set(literal[k]) ^ set(declared.get(k, []))})
   # Naming these does not repair them. Control 10 compares two stated constants and still cannot fail.
   declared_only = ["must_fail_10_liion_exceeds_thermal_arbitrage_capex_ceiling"]
+  # Every other control that reads a declared field, with the field it reads. Controls 1, 2, 4, 6 and 9 read none directly.
   declared_partly = {
+      "must_fail_03_tornado_uplift_resisted_without_ballast":
+          "the tie-down capacity it compares the computed uplift against, tornado_tiedown_capacity_kN, is a declared design value",
       "must_fail_05_bare_concrete_fails_hall_acoustic_absorption":
           "nrc_poraver_helmholtz is declared as 0.72, and 0.72 is written again as a literal in the reverberation calculation",
+      "must_fail_07_undamped_steel_exceeds_0p0005g_switch_limit":
+          "the limit it compares against, oem_switch_limit_g_rms, is declared from a manufacturer's figure",
+      "must_fail_08_top_heavy_unbraced_frame_fails_risk_cat_iv_drift":
+          "the limit it compares against, risk_cat_iv_drift_limit_pct, is declared from the code",
       "must_fail_11_low_grade_air_exhaust_cannot_drive_adsorption": "cop_ads_at_32C_air_exhaust is declared as 0.0",
       "must_fail_12_evaporative_plant_fails_zero_water_and_pue_gate": "WUE_funi_frame_L_per_kWh is declared as 0.0",
+      "must_fail_13_dry_recooling_at_45C_cannot_reach_design_adsorption_cop":
+          "cop_ads_design and T_recooling_design_C are declared, and so are the two temperatures the limits are computed from",
+      "must_fail_14_freed_utility_power_counted_as_it_power": "cop_loop_design is declared",
   }
+  require(set(declared_partly) | set(declared_only) <= set(ct), "a control named here does not exist")
   return {
       "repository": "aska-physical/funi-frame", "version": "0.1.1", "symbolic_theorems": th,
       "domain_1_funicular_radiative_roof": rf, "domain_2_vibro_thermal_sandwich_wall": wl,
@@ -288,7 +340,7 @@ def main() -> int:
   if saved != cert:
       print("ERROR: certificate drift detected against verify.py!", file=sys.stderr)
       return 1
-  print(f"[PASS] funi-frame v0.1.1 ({cert['controls_passed']} controls, PUE={cert['domain_5_6_three_tier_tes_and_closed_loop_cooling']['PUE_funi_frame']}, WUE=0.0 L/kWh, Rack={cert['domain_3_broadband_vibration_cascade']['rack_g_rms_funi_frame']} g_rms): OK")
+  print(f"[PASS] funi-frame v0.1.1 ({cert['controls_passed']} controls, PUE={cert['domain_5_6_three_tier_tes_and_closed_loop_cooling']['PUE_funi_frame']}, WUE={cert['domain_5_6_three_tier_tes_and_closed_loop_cooling']['WUE_funi_frame_L_per_kWh']} L/kWh, Rack={cert['domain_3_broadband_vibration_cascade']['rack_g_rms_funi_frame']} g_rms): OK")
   return 0
 
 

@@ -31,7 +31,7 @@
 python3 verify.py
 ```
 
-Verifies six SymPy symbolic identities and **14/14 must-fail controls** against [`results/certificate.json`](results/certificate.json). The certificate names the inputs that are declared from the literature or the design brief rather than computed (`declared_inputs`), the one control that rests on declared inputs only (`controls_on_declared_inputs_only`), and the three that rest on them in part (`controls_resting_partly_on_declared_inputs`). Naming them is disclosure, not a repair. Full engineering monographs, inter-agent handoff, negative findings, and roadmap live in [`docs/ENGINEERING_STUDIES.md`](docs/ENGINEERING_STUDIES.md), [`HANDOFF.md`](HANDOFF.md), and [`CHANGELOG.md`](CHANGELOG.md).
+Verifies six SymPy symbolic identities and **14/14 must-fail controls** against [`results/certificate.json`](results/certificate.json). The certificate names the inputs that are declared from the literature or the design brief rather than computed (`declared_inputs`), the one control that rests on declared inputs only (`controls_on_declared_inputs_only`), and the eight others that read a declared value, each with the value it reads (`controls_resting_partly_on_declared_inputs`). Naming them is disclosure, not a repair. The list of declared inputs is checked against the source of `verify.py`, so a certificate field that is a written number cannot be left off it. `python3 -B -m unittest discover -s tests` checks that the verifier behaves the same under `python3 -O`. Full engineering monographs, inter-agent handoff, negative findings, and roadmap live in [`docs/ENGINEERING_STUDIES.md`](docs/ENGINEERING_STUDIES.md), [`HANDOFF.md`](HANDOFF.md), and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Attribution & Ethos
 
