@@ -14,6 +14,9 @@ Corrections from the cross-repository review in [`aska-physical/optifab`](/aska-
 - **`Must-fail #14`:** freed utility power may not be counted as IT power. It checks both IT figures by a power balance (new IT load plus its overhead equals the freed utility power, to within rounding) and both revenue figures against them, so a wrong formula that kept the ordering fails.
 - **`declared_inputs`, `controls_on_declared_inputs_only` and `controls_resting_partly_on_declared_inputs`** in the certificate: every value that is stated from the literature or the design brief rather than computed, the one control (`#10`) that compares only such values, and the three (`#5`, `#11`, `#12`) that rest on them in part. This is disclosure, not a fix: `#10` still cannot fail, and a cost model for it is open work.
 
+### Fixed
+- **`python3 -O verify.py` skipped every check.** The verifier's checks were `assert` statements, which Python strips under `-O`: with a failing control it built a certificate reading `13/14` and raised nothing. All `10` are now calls to `require()`, which raises `RuntimeError` whatever the flags. Seven of them were in `v0.1.0`. The same hazard is tracked in `aska-physical/cfrp-masts#3` and was found again in the review of `aska-physical/optifab#13`.
+
 ### Not changed
 - No structural, acoustic, vibration, seismic or storage result. `PUE`, `WUE` and all `12` original controls are as in `v0.1.0`.
 

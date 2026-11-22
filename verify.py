@@ -10,35 +10,41 @@ import sympy as sp
 CERT_PATH = Path(__file__).resolve().parent / "results" / "certificate.json"
 
 
+def require(condition, message="") -> None:
+  """A check that cannot be switched off. `python3 -O` strips every `assert` statement, so none is used here."""
+  if not condition:
+    raise RuntimeError(f"verification failed: {message}")
+
+
 def verify_symbolic_theorems() -> dict[str, str]:
     r, eta, zeta = sp.symbols("r eta zeta", positive=True)
     T_hyst = sp.sqrt((1 + eta**2) / ((1 - r**2) ** 2 + eta**2))
     T_visc = sp.sqrt((1 + (2 * zeta * r) ** 2) / ((1 - r**2) ** 2 + (2 * zeta * r) ** 2))
-    assert sp.limit(r * T_hyst, r, sp.oo) == 0
-    assert sp.simplify(sp.limit(r * T_visc, r, sp.oo) - 2 * zeta) == 0
-    assert sp.simplify(sp.limit(r**2 * T_hyst, r, sp.oo) - sp.sqrt(1 + eta**2)) == 0
+    require(sp.limit(r * T_hyst, r, sp.oo) == 0, "a symbolic identity does not hold")
+    require(sp.simplify(sp.limit(r * T_visc, r, sp.oo) - 2 * zeta) == 0, "a symbolic identity does not hold")
+    require(sp.simplify(sp.limit(r**2 * T_hyst, r, sp.oo) - sp.sqrt(1 + eta**2)) == 0, "a symbolic identity does not hold")
 
     rho_pin, k_pin, k_ins, t_ins = sp.symbols("rho_pin k_pin k_ins t_ins", positive=True)
     U_eff = ((1 - rho_pin) * k_ins + rho_pin * k_pin) / t_ins
-    assert sp.simplify(U_eff / (k_ins / t_ins) - (1 + rho_pin * (k_pin / k_ins - 1))) == 0
+    require(sp.simplify(U_eff / (k_ins / t_ins) - (1 + rho_pin * (k_pin / k_ins - 1))) == 0, "a symbolic identity does not hold")
 
     phi, rho_p, cp_p, L_f, rho_w, cp_w, dT = sp.symbols("phi rho_p cp_p L_f rho_w cp_w dT", positive=True)
     E_w = rho_w * cp_w * dT
     E_pcm = (1 - phi) * E_w + phi * rho_p * (cp_p * dT + L_f)
-    assert sp.simplify(E_pcm / E_w - ((1 - phi) + phi * rho_p * (cp_p * dT + L_f) / E_w)) == 0
+    require(sp.simplify(E_pcm / E_w - ((1 - phi) + phi * rho_p * (cp_p * dT + L_f) / E_w)) == 0, "a symbolic identity does not hold")
 
     a_liq, cop = sp.symbols("alpha_liq cop_ads", positive=True)
-    assert sp.simplify(sp.solve(sp.Eq(a_liq * cop, 1 - a_liq), a_liq)[0] - 1 / (1 + cop)) == 0
+    require(sp.simplify(sp.solve(sp.Eq(a_liq * cop, 1 - a_liq), a_liq)[0] - 1 / (1 + cop)) == 0, "a symbolic identity does not hold")
 
     Th, Ta, Tc = sp.symbols("T_h T_a T_c", positive=True)
     cop_rev = (Tc / (Ta - Tc)) * ((Th - Ta) / Th)
-    assert sp.simplify(cop_rev.subs(Ta, Tc * Th * (1 + cop) / (cop * Th + Tc)) - cop) == 0
+    require(sp.simplify(cop_rev.subs(Ta, Tc * Th * (1 + cop) / (cop * Th + Tc)) - cop) == 0, "a symbolic identity does not hold")
 
     P, pue_c, pue_f, c_loop, q0, a0, P2 = sp.symbols("P PUE_c PUE_f c_loop q0 a0 P2", positive=True)
-    assert sp.simplify(((P * pue_c) / pue_f - P) - P * (pue_c - pue_f) / pue_f) == 0
+    require(sp.simplify(((P * pue_c) / pue_f - P) - P * (pue_c - pue_f) / pue_f) == 0, "a symbolic identity does not hold")
     used = lambda load: load + (load - q0) / c_loop + a0
     grown = sp.solve(sp.Eq(used(P2), P * pue_c), P2)
-    assert len(grown) == 1 and sp.simplify((grown[0] - P) - (P * pue_c - used(P)) / (1 + 1 / c_loop)) == 0
+    require(len(grown) == 1 and sp.simplify((grown[0] - P) - (P * pue_c - used(P)) / (1 + 1 / c_loop)) == 0, "a symbolic identity does not hold")
     return {
         "hysteretic_vs_viscous_rolloff": "lim_{r->oo} r*T_hyst = 0 (O(r^-2)) vs. lim_{r->oo} r*T_visc = 2*zeta (O(r^-1))",
         "thermal_bridge_amplification": "U_eff / U_core = 1 + rho_pin * (k_pin / k_ins - 1)",
@@ -237,7 +243,7 @@ def build_certificate() -> dict:
       and abs(ts["unlocked_annual_revenue_low_M_usd"] - it_lo * 25.0) <= 0.13
       and abs(ts["unlocked_annual_revenue_high_M_usd"] - it_hi * 50.0) <= 0.26
       and ts["unlocked_annual_revenue_low_M_usd"] < freed * 25.0 - 0.13)
-  assert all(ct.values()), [k for k, v in ct.items() if not v]
+  require(all(ct.values()), [k for k, v in ct.items() if not v])
   # Values that no solver computes: they are stated from the cited literature or the design brief.
   declared = {
       "domain_1_funicular_radiative_roof": ["tornado_tiedown_capacity_kN", "noon_radiative_sky_cooling_W_m2"],
