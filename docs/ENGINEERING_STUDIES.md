@@ -1,6 +1,8 @@
 # Engineering Studies Monograph — `aska-physical/funi-frame` (`v0.1.0`)
 
 Complete archival capture of both session engineering studies for [`aska-physical/funi-frame`](/aska-physical/funi-frame), machine-verified by [`verify.py`](../verify.py) against [`results/certificate.json`](../results/certificate.json) (`12/12` must-fail controls):
+
+> **Correction note, `v0.1.1` (2026-11-17).** This monograph is the archive of `v0.1.0` and its text is unchanged. Two things in it were corrected later. The unlocked-compute figure in II.3 (`$76.62M–$153.24M/yr`) counted `3.06 MW` of freed utility power as IT power; the corrected figure is `2.85–2.96 MW` of new IT load. And the `0.62` adsorption COP has a re-cooling limit of `41.46 °C` that this text does not state. See [`CHANGELOG.md`](../CHANGELOG.md) and [`HANDOFF.md`](../HANDOFF.md) for `v0.1.1`.
 1. **Study I:** *Whole-Building Monolithic Vibro-Thermal Data-Center Exoskeleton (Funicular Radiative Roof, Zero-Bridge Poraver-mPCM Sandwich Shear Walls, Three-Stage Hysteretic Vibration Cascade & Top-Down Seismic Cellular Box)*
 2. **Study II:** *Capturing AI Data-Center Waste Heat, Three-Tier High-Density Thermal Energy Storage (PCM, Mineral Packed Beds & Subsurface ATES/RTES/Energy Piles), and Closed-Loop Sorption Cooling*
 
