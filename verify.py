@@ -220,10 +220,10 @@ def solve_funicular_roof(
   #    - pure prestress-only camber (w = 0, P_sma), dead-load-only take-up (w_dead, 0),
   #      and net dead + prestress camber before live load (w_dead, P_sma)
   w_dead = q_dead * w_bay
-  _, d_unprestressed, _ = _solve_parabolic_tied_arch_virtual_work(
+  H_unp_N, d_unprestressed, _ = _solve_parabolic_tied_arch_virtual_work(
       L_mm, f_mm, w_serv, EI_arch, EA_arch, EA_tie, 0.0
   )
-  _, d_inc_live, _ = _solve_parabolic_tied_arch_virtual_work(
+  H_inc_live_N, d_inc_live, _ = _solve_parabolic_tied_arch_virtual_work(
       L_mm, f_mm, w_live, EI_arch, EA_arch, EA_tie, 0.0
   )
   _, d_prestress_only, _ = _solve_parabolic_tied_arch_virtual_work(
@@ -235,6 +235,9 @@ def solve_funicular_roof(
   _, d_dead_plus_prestress, _ = _solve_parabolic_tied_arch_virtual_work(
       L_mm, f_mm, w_dead, EI_arch, EA_arch, EA_tie, P_sma * 1e3
   )
+  tie_elong_srv_mm = (H_srv_N - P_sma * 1e3) * L_mm / EA_tie
+  tie_elong_unp_mm = H_unp_N * L_mm / EA_tie
+  tie_elong_live_mm = H_inc_live_N * L_mm / EA_tie
 
   H_rig = w_serv * L**2 / (8.0 * f_r)
   EA_gf = n_r * (420.0 * 46000.0)
@@ -252,13 +255,17 @@ def solve_funicular_roof(
       "H_service_kN": round(H_srv, 2), "fc_crown_MPa": round(fc_cr, 2),
       "fc_allow_service_MPa": round(0.45 * fc, 2), "ft_crown_passive_gfrp_MPa": round(ft_gf, 2),
       "delta_vault_mm": round(d_v, 2), "span_over_delta_vault": round(L_mm / d_v, 1),
+      "tie_elongation_service_mm": round(tie_elong_srv_mm, 2),
       "delta_vault_prestress_only_mm": round(d_prestress_only, 2),
       "delta_vault_dead_load_only_mm": round(d_dead_only, 2),
       "delta_vault_dead_plus_prestress_mm": round(d_dead_plus_prestress, 2),
       "delta_vault_unprestressed_mm": round(d_unprestressed, 2),
+      "tie_elongation_unprestressed_mm": round(tie_elong_unp_mm, 2),
       "span_over_delta_unprestressed": round(L_mm / d_unprestressed, 1),
       "delta_vault_incremental_live_mm": round(d_inc_live, 2),
+      "tie_elongation_incremental_live_mm": round(tie_elong_live_mm, 2),
       "span_over_delta_incremental_live": round(L_mm / d_inc_live, 1),
+      "passes_live_load_L360": (L_mm / d_inc_live) >= 360.0,
       "virtual_work_invariance_err_mm": round(vw_err, 9),
       "span_over_delta_ipe600_rafter": round(L_mm / d_ipe, 1),
       "tornado_net_uplift_kN": round(max(0.0, (q_tor - 0.9 * q_dead) * L * w_bay), 2),
@@ -377,9 +384,11 @@ def _cop_ads_state(t_drive_c: float, t_recool_c: float, t_chilled_c: float, eta_
 def solve_three_tier_tes_and_cooling(
     T_recooling_design_C: float = 30.0,
     pcm_skid_ntu: float = 1.5,
+    pcm_skid_flow_capacity_factor: float = 1.30,
 ) -> dict:
   T_rec = _require_finite_real(T_recooling_design_C, "T_recooling_design_C")
   ntu = _require_positive_real(pcm_skid_ntu, "pcm_skid_ntu")
+  flow_factor = _require_positive_real(pcm_skid_flow_capacity_factor, "pcm_skid_flow_capacity_factor")
   P_it, Q_liq, Q_air = 10.0, 8.5, 1.5
   cop_ads_ref, cop_loop = 0.62, 28.0
   # T_rec is a proposed design value, new in v0.1.1. No source is cited for it and the owner has not confirmed it.
@@ -393,15 +402,20 @@ def solve_three_tier_tes_and_cooling(
   cop_ads_45 = _cop_ads_state(T_drv, 45.0, T_chw, eta_II)
 
   # Finite NTU isothermal HX effectiveness for salt-hydrate PCM skid (C_r -> 0): eps = 1 - exp(-NTU).
-  # Physically, eps scales the instantaneous heat-transfer RATE Q = eps * (mdot*c_p*dT_max) rather than
-  # reducing the latent inventory (2,500 kWh_th in 83.33 m^3). At nominal flow capacity mdot*c_p*dT_max = P_it,
-  # finite NTU=1.5 caps heat rejection at 7.769 MW (< 10 MW), discharging the full 2,500 kWh_th over 19.31 min.
+  # Physically, eps scales the instantaneous heat-transfer RATE Q_cap = eps * flow_factor * (mdot*c_p*dT_nom)
+  # rather than reducing latent inventory (2,500 kWh_th in 83.33 m^3). At nominal 1.0x flow capacity and
+  # NTU=1.5, heat rejection is capped at 7.769 MW (< 10 MW, 2.231 MW shortfall, 19.31 min partial discharge);
+  # sizing secondary flow capacity to 1.30x (> 1/eps = 1.2872x) delivers 10.099 MW >= 10.0 MW for a full
+  # 15.00 min ride-through at full 10.0 MW IT load.
   eps_pcm = 1.0 - math.exp(-ntu)
   v_pcm, v_wat = 2500.0 / 30.0, 2500.0 / 11.5
   pcm_inventory_MWh = 2.5
-  pcm_peak_rate_MW = P_it * eps_pcm
-  pcm_rate_shortfall_MW = P_it - pcm_peak_rate_MW
-  pcm_discharge_at_hx_rate_min = (pcm_inventory_MWh / pcm_peak_rate_MW) * 60.0
+  pcm_nominal_flow_rate_MW = P_it * eps_pcm
+  pcm_peak_rate_MW = P_it * flow_factor * eps_pcm
+  pcm_rate_shortfall_MW = max(0.0, P_it - pcm_peak_rate_MW)
+  pcm_meets_full_it_rate = pcm_peak_rate_MW >= P_it
+  pcm_full_load_ride_through_min = (pcm_inventory_MWh / P_it) * 60.0 if pcm_meets_full_it_rate else 0.0
+  pcm_discharge_at_hx_rate_min = (pcm_inventory_MWh / min(P_it, pcm_peak_rate_MW)) * 60.0
   pcm_flow_mult_full_rate = 1.0 / eps_pcm
 
   Q_drv = Q_air / cop_ads
@@ -442,13 +456,16 @@ def solve_three_tier_tes_and_cooling(
       "Q_drive_for_adsorption_MW": round(Q_drv, 3), "adsorption_self_cools_air_load": Q_drv <= Q_liq,
       "cop_ads_at_32C_air_exhaust": 0.0,
       "pcm_skid_ntu": pcm_skid_ntu,
+      "pcm_skid_flow_capacity_factor": pcm_skid_flow_capacity_factor,
       "pcm_skid_effectiveness": round(eps_pcm, 4),
       "pcm_ride_through_volume_m3": round(v_pcm, 2),
+      "pcm_skid_nominal_1x_flow_rate_MW": round(pcm_nominal_flow_rate_MW, 3),
       "pcm_skid_peak_cooling_rate_MW": round(pcm_peak_rate_MW, 3),
       "pcm_skid_rate_shortfall_MW": round(pcm_rate_shortfall_MW, 3),
+      "pcm_skid_full_load_ride_through_min": round(pcm_full_load_ride_through_min, 2),
       "pcm_skid_discharge_duration_at_hx_rate_min": round(pcm_discharge_at_hx_rate_min, 2),
       "pcm_skid_flow_capacity_multiplier_for_full_rate": round(pcm_flow_mult_full_rate, 4),
-      "pcm_skid_meets_full_it_rate_at_nominal_flow": pcm_peak_rate_MW >= P_it,
+      "pcm_skid_meets_full_it_rate": pcm_meets_full_it_rate,
       "water_equivalent_volume_m3": round(v_wat, 2),
       "water_only_ride_through_in_same_volume_min": round((v_pcm * 11.5 / 1000.0) / P_it * 60.0, 2),
       "basalt_battery_volume_m3": 88.68, "basalt_media_mass_tonnes": 117.06, "basalt_media_cost_usd": 14046.0,
@@ -473,8 +490,13 @@ def solve_three_tier_tes_and_cooling(
 def build_certificate() -> dict:
   th, rf, wl, vb = verify_symbolic_theorems(), solve_funicular_roof(), solve_vibro_thermal_wall(), solve_vibration_cascade()
   se, ts = solve_whole_frame_seismic(rf["dead_mass_kg_m2"], wl["wall_mass_kg_m2"]), solve_three_tier_tes_and_cooling()
+  # Counterfactual un-oversized 1.0x-flow NTU=1.5 PCM skid (7.769 MW < 10.0 MW) kept separate from the
+  # sized passing skid so improving design NTU or flow factor passes every gate monotonically.
+  ts_nom_1x = solve_three_tier_tes_and_cooling(pcm_skid_ntu=1.5, pcm_skid_flow_capacity_factor=1.0)
   fr = 0.62 * math.sqrt(55.0)
   ct = {
+      # Net total-load sag after -93.21 mm Fe-SMA camber vs uncambered IPE 600 rafter; live-load L/360
+      # failure (128.18 mm = L/187.2) is explicitly enforced by must_fail_15 below.
       "must_fail_01_rolled_steel_24m_rafter_fails_deflection": rf["span_over_delta_ipe600_rafter"] < 360.0 <= rf["span_over_delta_vault"],
       "must_fail_02_passive_gfrp_roof_tie_cracks_crown": rf["ft_crown_passive_gfrp_MPa"] > fr and rf["fc_crown_MPa"] <= rf["fc_allow_service_MPa"],
       "must_fail_03_tornado_uplift_resisted_without_ballast": 0.0 < rf["tornado_net_uplift_kN"] and rf["tornado_tiedown_capacity_kN"] >= 1.5 * rf["tornado_net_uplift_kN"],
@@ -491,7 +513,9 @@ def build_certificate() -> dict:
       "must_fail_09_plain_water_fails_compact_15min_ridethrough": (
           ts["water_only_ride_through_in_same_volume_min"] < 6.0
           and ts["pcm_ride_through_volume_m3"] < 0.40 * ts["water_equivalent_volume_m3"]
-          and ts["pcm_skid_discharge_duration_at_hx_rate_min"] > 15.0
+          and ts["pcm_skid_meets_full_it_rate"] is True
+          and ts["pcm_skid_peak_cooling_rate_MW"] >= ts["P_it_MW"]
+          and ts["pcm_skid_full_load_ride_through_min"] >= 15.0
       ),
       "must_fail_10_liion_exceeds_thermal_arbitrage_capex_ceiling": ts["annualized_capex_liion_usd_kWh"] > 0.050 and ts["annualized_capex_basalt_usd_kWh"] <= 0.020,
       "must_fail_11_low_grade_air_exhaust_cannot_drive_adsorption": ts["cop_ads_at_32C_air_exhaust"] == 0.0 and ts["adsorption_self_cools_air_load"] is True,
@@ -521,14 +545,15 @@ def build_certificate() -> dict:
       rf["virtual_work_invariance_err_mm"] < 1e-6
       and rf["span_over_delta_unprestressed"] < 360.0
       and rf["span_over_delta_incremental_live"] < 360.0
+      and rf["passes_live_load_L360"] is False
   )
   ct["must_fail_16_fixed_cop_ignores_second_law_collapse_at_40C_and_45C"] = (
       ts["cop_ads_at_40C_recooling"] < 0.30
       and ts["alpha_liq_critical_at_40C"] > 0.80
       and ts["adsorption_self_cools_at_45C_recooling"] is False
-      and ts["pcm_skid_effectiveness"] < 1.0
-      and ts["pcm_skid_peak_cooling_rate_MW"] < ts["P_it_MW"]
-      and ts["pcm_skid_meets_full_it_rate_at_nominal_flow"] is False
+      and ts_nom_1x["pcm_skid_peak_cooling_rate_MW"] < ts_nom_1x["P_it_MW"]
+      and ts_nom_1x["pcm_skid_meets_full_it_rate"] is False
+      and ts["pcm_skid_meets_full_it_rate"] is True
   )
   require(all(ct.values()), [k for k, v in ct.items() if not v])
   # Values that no solver computes: they are stated from the cited literature or the design brief.
@@ -541,7 +566,7 @@ def build_certificate() -> dict:
       "domain_5_6_three_tier_tes_and_closed_loop_cooling": [
           "P_it_MW", "Q_liquid_w45_MW", "Q_air_rdhx_MW", "cop_ads_design", "cop_ads_at_32C_air_exhaust",
           "T_drive_supply_C", "T_chilled_water_C", "T_recooling_design_C", "cop_loop_design",
-          "pcm_skid_ntu", "basalt_battery_volume_m3",
+          "pcm_skid_ntu", "pcm_skid_flow_capacity_factor", "basalt_battery_volume_m3",
           "basalt_media_mass_tonnes", "basalt_media_cost_usd", "annualized_capex_basalt_usd_kWh",
           "annualized_capex_liion_usd_kWh", "WUE_funi_frame_L_per_kWh"],
   }
@@ -564,14 +589,14 @@ def build_certificate() -> dict:
       "must_fail_08_top_heavy_unbraced_frame_fails_risk_cat_iv_drift":
           "the limit it compares against, risk_cat_iv_drift_limit_pct, is declared from the code",
       "must_fail_09_plain_water_fails_compact_15min_ridethrough":
-          "pcm_skid_ntu is declared as 1.5 for finite-effectiveness salt-hydrate heat exchange",
+          "pcm_skid_ntu (1.5) and pcm_skid_flow_capacity_factor (1.30) are declared design inputs for finite-NTU salt-hydrate heat exchange",
       "must_fail_11_low_grade_air_exhaust_cannot_drive_adsorption": "cop_ads_at_32C_air_exhaust is declared as 0.0",
       "must_fail_12_evaporative_plant_fails_zero_water_and_pue_gate": "WUE_funi_frame_L_per_kWh is declared as 0.0",
       "must_fail_13_dry_recooling_at_45C_cannot_reach_design_adsorption_cop":
           "cop_ads_design and T_recooling_design_C are declared, and so are the two temperatures the limits are computed from",
       "must_fail_14_freed_utility_power_counted_as_it_power": "cop_loop_design is declared",
       "must_fail_16_fixed_cop_ignores_second_law_collapse_at_40C_and_45C":
-          "cop_ads_design, T_recooling_design_C, and pcm_skid_ntu are declared design inputs",
+          "cop_ads_design, T_recooling_design_C, pcm_skid_ntu, and pcm_skid_flow_capacity_factor are declared design inputs",
   }
   require(set(declared_partly) | set(declared_only) <= set(ct), "a control named here does not exist")
   return {
