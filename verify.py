@@ -214,13 +214,26 @@ def solve_funicular_roof(
   S_cr = I_ar / (0.5 * h_cr)
   fc_cr = (H_srv * 1e3) / A_cr + abs(M_srv * 1e6) / S_cr
 
-  # 2) Honest tie-stretch envelopes: un-prestressed total service load (P_sma = 0)
-  #    and post-activation incremental live/plant load (w_live = (q_plant + q_hung)*w_bay, dP_sma = 0)
+  # 2) Honest tie-stretch envelopes & exact linear-superposition camber load cases:
+  #    - un-prestressed total service load (P_sma = 0)
+  #    - post-activation incremental live/plant load (w_live = (q_plant + q_hung)*w_bay, dP_sma = 0)
+  #    - pure prestress-only camber (w = 0, P_sma), dead-load-only take-up (w_dead, 0),
+  #      and net dead + prestress camber before live load (w_dead, P_sma)
+  w_dead = q_dead * w_bay
   _, d_unprestressed, _ = _solve_parabolic_tied_arch_virtual_work(
       L_mm, f_mm, w_serv, EI_arch, EA_arch, EA_tie, 0.0
   )
   _, d_inc_live, _ = _solve_parabolic_tied_arch_virtual_work(
       L_mm, f_mm, w_live, EI_arch, EA_arch, EA_tie, 0.0
+  )
+  _, d_prestress_only, _ = _solve_parabolic_tied_arch_virtual_work(
+      L_mm, f_mm, 0.0, EI_arch, EA_arch, EA_tie, P_sma * 1e3
+  )
+  _, d_dead_only, _ = _solve_parabolic_tied_arch_virtual_work(
+      L_mm, f_mm, w_dead, EI_arch, EA_arch, EA_tie, 0.0
+  )
+  _, d_dead_plus_prestress, _ = _solve_parabolic_tied_arch_virtual_work(
+      L_mm, f_mm, w_dead, EI_arch, EA_arch, EA_tie, P_sma * 1e3
   )
 
   H_rig = w_serv * L**2 / (8.0 * f_r)
@@ -239,6 +252,9 @@ def solve_funicular_roof(
       "H_service_kN": round(H_srv, 2), "fc_crown_MPa": round(fc_cr, 2),
       "fc_allow_service_MPa": round(0.45 * fc, 2), "ft_crown_passive_gfrp_MPa": round(ft_gf, 2),
       "delta_vault_mm": round(d_v, 2), "span_over_delta_vault": round(L_mm / d_v, 1),
+      "delta_vault_prestress_only_mm": round(d_prestress_only, 2),
+      "delta_vault_dead_load_only_mm": round(d_dead_only, 2),
+      "delta_vault_dead_plus_prestress_mm": round(d_dead_plus_prestress, 2),
       "delta_vault_unprestressed_mm": round(d_unprestressed, 2),
       "span_over_delta_unprestressed": round(L_mm / d_unprestressed, 1),
       "delta_vault_incremental_live_mm": round(d_inc_live, 2),

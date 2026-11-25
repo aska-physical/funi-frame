@@ -55,14 +55,35 @@ class TestFuniFramePhysicalHardening(unittest.TestCase):
         # Active Fe-SMA net service crown deflection (dead + plant + hung) is 34.96 mm, NOT 11.74 mm
         self.assertAlmostEqual(rf["delta_vault_mm"], 34.96, places=2)
         self.assertGreaterEqual(rf["span_over_delta_vault"], 360.0)
+        # Exact linear-superposition camber load cases (pure prestress -117.19, dead +23.97, net dead+prestress -93.21)
+        self.assertAlmostEqual(rf["delta_vault_prestress_only_mm"], -117.19, places=2)
+        self.assertAlmostEqual(rf["delta_vault_dead_load_only_mm"], 23.97, places=2)
+        self.assertAlmostEqual(rf["delta_vault_dead_plus_prestress_mm"], -93.21, places=2)
+        self.assertAlmostEqual(
+            rf["delta_vault_prestress_only_mm"] + rf["delta_vault_dead_load_only_mm"],
+            rf["delta_vault_dead_plus_prestress_mm"],
+            delta=0.015,
+        )
+        self.assertAlmostEqual(
+            rf["delta_vault_dead_plus_prestress_mm"] + rf["delta_vault_incremental_live_mm"],
+            rf["delta_vault_mm"],
+            delta=0.015,
+        )
+        self.assertAlmostEqual(
+            rf["delta_vault_dead_load_only_mm"] + rf["delta_vault_incremental_live_mm"],
+            rf["delta_vault_unprestressed_mm"],
+            delta=0.015,
+        )
         # Honest tie-stretch crown deflections: un-prestressed (152.15 mm) and post-activation live (128.18 mm) fail L/360
         self.assertAlmostEqual(rf["delta_vault_unprestressed_mm"], 152.15, places=2)
         self.assertLess(rf["span_over_delta_unprestressed"], 360.0)
         self.assertAlmostEqual(rf["delta_vault_incremental_live_mm"], 128.18, places=2)
         self.assertLess(rf["span_over_delta_incremental_live"], 360.0)
-        # Turning off SMA activation reproduces unprestressed deflection identically
+        # Turning off SMA activation reproduces unprestressed deflection identically and zeroes prestress camber
         cold = verify.solve_funicular_roof(T_sma_C=25.0)
         self.assertAlmostEqual(cold["delta_vault_mm"], rf["delta_vault_unprestressed_mm"], places=2)
+        self.assertAlmostEqual(cold["delta_vault_prestress_only_mm"], 0.0, places=2)
+        self.assertAlmostEqual(cold["delta_vault_dead_plus_prestress_mm"], rf["delta_vault_dead_load_only_mm"], places=2)
         for bad in (0.0, -5.0, float("nan"), float("inf"), True):
             with self.assertRaises(ValueError):
                 verify.solve_funicular_roof(q_plant=bad)
